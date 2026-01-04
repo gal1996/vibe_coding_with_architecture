@@ -21,3 +21,6 @@ build/
 *.dll
 *.so
 *.dylib
+
+# Serena
+.serena
