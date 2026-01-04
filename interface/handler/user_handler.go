@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/gal1996/vibe_coding_with_architecture/usecase/interactor"
+	"github.com/gin-gonic/gin"
 )
 
 // UserHandler handles HTTP requests for users
