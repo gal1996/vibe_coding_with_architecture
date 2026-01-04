@@ -9,10 +9,12 @@ import (
 type OrderStatus string
 
 const (
-	OrderStatusPending   OrderStatus = "pending"
-	OrderStatusConfirmed OrderStatus = "confirmed"
-	OrderStatusCancelled OrderStatus = "cancelled"
-	OrderStatusDelivered OrderStatus = "delivered"
+	OrderStatusPending       OrderStatus = "pending"
+	OrderStatusConfirmed     OrderStatus = "confirmed"
+	OrderStatusPaymentFailed OrderStatus = "payment_failed"
+	OrderStatusCompleted     OrderStatus = "completed"
+	OrderStatusCancelled     OrderStatus = "cancelled"
+	OrderStatusDelivered     OrderStatus = "delivered"
 )
 
 // OrderItem represents a single item in an order
@@ -121,6 +123,26 @@ func (o *Order) Cancel() error {
 		return errors.New("cannot cancel delivered orders")
 	}
 	o.Status = OrderStatusCancelled
+	o.UpdatedAt = time.Now()
+	return nil
+}
+
+// Complete marks the order as completed after successful payment
+func (o *Order) Complete() error {
+	if o.Status != OrderStatusConfirmed {
+		return errors.New("only confirmed orders can be completed")
+	}
+	o.Status = OrderStatusCompleted
+	o.UpdatedAt = time.Now()
+	return nil
+}
+
+// FailPayment marks the order as payment failed
+func (o *Order) FailPayment() error {
+	if o.Status != OrderStatusPending {
+		return errors.New("only pending orders can fail payment")
+	}
+	o.Status = OrderStatusPaymentFailed
 	o.UpdatedAt = time.Now()
 	return nil
 }

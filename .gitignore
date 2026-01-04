@@ -24,3 +24,6 @@ build/
 
 # Serena
 .serena
+
+# Binary output
+server

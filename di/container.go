@@ -4,6 +4,7 @@ import (
 	"github.com/gal1996/vibe_coding_with_architecture/domain/repository"
 	"github.com/gal1996/vibe_coding_with_architecture/domain/service"
 	"github.com/gal1996/vibe_coding_with_architecture/infrastructure/auth"
+	"github.com/gal1996/vibe_coding_with_architecture/infrastructure/payment"
 	"github.com/gal1996/vibe_coding_with_architecture/infrastructure/persistence"
 	"github.com/gal1996/vibe_coding_with_architecture/interface/handler"
 	"github.com/gal1996/vibe_coding_with_architecture/interface/middleware"
@@ -19,8 +20,9 @@ type Container struct {
 	OrderRepository   repository.OrderRepository
 
 	// Services
-	AuthService  port.AuthService
-	OrderService *service.OrderService
+	AuthService    port.AuthService
+	PaymentService port.PaymentService
+	OrderService   *service.OrderService
 
 	// Use Cases
 	ProductUseCase *interactor.ProductUseCase
@@ -45,12 +47,13 @@ func NewContainer() *Container {
 
 	// Initialize services
 	authService := auth.NewJWTAuthService(userRepo)
+	paymentService := payment.NewSimulatedPaymentService()
 	orderService := service.NewOrderService(productRepo, orderRepo)
 
 	// Initialize use cases
 	productUseCase := interactor.NewProductUseCase(productRepo, userRepo, authService)
 	userUseCase := interactor.NewUserUseCase(userRepo, authService)
-	orderUseCase := interactor.NewOrderUseCase(orderRepo, productRepo, orderService, authService)
+	orderUseCase := interactor.NewOrderUseCase(orderRepo, productRepo, orderService, authService, paymentService)
 
 	// Initialize handlers
 	productHandler := handler.NewProductHandler(productUseCase)
@@ -67,8 +70,9 @@ func NewContainer() *Container {
 		OrderRepository:   orderRepo,
 
 		// Services
-		AuthService:  authService,
-		OrderService: orderService,
+		AuthService:    authService,
+		PaymentService: paymentService,
+		OrderService:   orderService,
 
 		// Use Cases
 		ProductUseCase: productUseCase,

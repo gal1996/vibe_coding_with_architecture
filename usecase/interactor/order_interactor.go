@@ -10,12 +10,13 @@ import (
 	"github.com/gal1996/vibe_coding_with_architecture/usecase/port"
 )
 
-// OrderUseCase handles order-related business logic
+// OrderUseCase implements the order use cases
 type OrderUseCase struct {
-	orderRepo    repository.OrderRepository
-	productRepo  repository.ProductRepository
-	orderService *service.OrderService
-	authService  port.AuthService
+	orderRepo      repository.OrderRepository
+	productRepo    repository.ProductRepository
+	orderService   *service.OrderService
+	authService    port.AuthService
+	paymentService port.PaymentService
 }
 
 // NewOrderUseCase creates a new order use case
@@ -24,12 +25,14 @@ func NewOrderUseCase(
 	productRepo repository.ProductRepository,
 	orderService *service.OrderService,
 	authService port.AuthService,
+	paymentService port.PaymentService,
 ) *OrderUseCase {
 	return &OrderUseCase{
-		orderRepo:    orderRepo,
-		productRepo:  productRepo,
-		orderService: orderService,
-		authService:  authService,
+		orderRepo:      orderRepo,
+		productRepo:    productRepo,
+		orderService:   orderService,
+		authService:    authService,
+		paymentService: paymentService,
 	}
 }
 
@@ -61,10 +64,51 @@ func (uc *OrderUseCase) CreateOrder(ctx context.Context, input CreateOrderInput)
 		}
 	}
 
-	// Process order using domain service (handles atomic operations)
+	// Create pending order with stock validation (but without reducing stock)
 	order, err := uc.orderService.ProcessOrder(ctx, currentUser.ID, requests)
 	if err != nil {
-		return nil, fmt.Errorf("failed to process order: %w", err)
+		return nil, fmt.Errorf("failed to create order: %w", err)
+	}
+
+	// Process payment before confirming the order and reducing stock
+	paymentSuccess, err := uc.paymentService.ProcessPayment(ctx, order.TotalPrice, currentUser.ID, order.ID)
+	if err != nil {
+		// If payment processing fails (system error), mark order as payment failed
+		order.FailPayment()
+		uc.orderRepo.Update(ctx, order)
+		return nil, fmt.Errorf("payment processing error: %w", err)
+	}
+
+	if !paymentSuccess {
+		// If payment is declined, mark order as payment failed
+		order.FailPayment()
+		err = uc.orderRepo.Update(ctx, order)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update order status: %w", err)
+		}
+		return nil, fmt.Errorf("payment declined for order %s", order.ID)
+	}
+
+	// Payment successful, now confirm the order and reduce stock atomically
+	err = uc.orderService.ConfirmOrderAndReduceStock(ctx, order)
+	if err != nil {
+		// If stock reduction fails, mark order as payment failed
+		// (Though payment succeeded, we cannot fulfill the order)
+		order.FailPayment()
+		uc.orderRepo.Update(ctx, order)
+		return nil, fmt.Errorf("failed to confirm order after payment: %w", err)
+	}
+
+	// Complete the order
+	err = order.Complete()
+	if err != nil {
+		return nil, fmt.Errorf("failed to complete order: %w", err)
+	}
+
+	// Update order status in repository
+	err = uc.orderRepo.Update(ctx, order)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update order: %w", err)
 	}
 
 	return order, nil
