@@ -23,8 +23,8 @@ func NewProductHandler(productUseCase *interactor.ProductUseCase) *ProductHandle
 type CreateProductRequest struct {
 	Name     string `json:"name" binding:"required"`
 	Price    int    `json:"price" binding:"required,min=0"`
-	Stock    int    `json:"stock" binding:"required,min=0"`
 	Category string `json:"category" binding:"required"`
+	// Stock is now managed through warehouse-specific allocations after product creation
 }
 
 // CreateProduct handles POST /products
@@ -38,7 +38,6 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	input := interactor.CreateProductInput{
 		Name:     req.Name,
 		Price:    req.Price,
-		Stock:    req.Stock,
 		Category: req.Category,
 	}
 

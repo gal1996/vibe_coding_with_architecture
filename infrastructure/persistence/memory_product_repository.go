@@ -83,22 +83,8 @@ func (r *MemoryProductRepository) Update(ctx context.Context, product *entity.Pr
 	return nil
 }
 
-// UpdateStock updates the stock of a product atomically
-func (r *MemoryProductRepository) UpdateStock(ctx context.Context, id string, quantity int) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	product, exists := r.products[id]
-	if !exists {
-		return errors.New("product not found")
-	}
-
-	if err := product.ReduceStock(quantity); err != nil {
-		return err
-	}
-
-	return nil
-}
+// Note: Stock management is now handled through StockService and StockRepository
+// Products themselves don't maintain stock counts anymore
 
 // BeginTransaction starts a new transaction
 func (r *MemoryProductRepository) BeginTransaction(ctx context.Context) (repository.Transaction, error) {

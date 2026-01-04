@@ -20,9 +20,7 @@ type ProductRepository interface {
 	// Update updates a product
 	Update(ctx context.Context, product *entity.Product) error
 
-	// UpdateStock updates the stock of a product atomically
-	UpdateStock(ctx context.Context, id string, quantity int) error
-
+	// Note: Stock management is now handled through StockRepository
 	// BeginTransaction starts a new transaction
 	BeginTransaction(ctx context.Context) (Transaction, error)
 }

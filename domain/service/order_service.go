@@ -15,13 +15,15 @@ import (
 type OrderService struct {
 	productRepo repository.ProductRepository
 	orderRepo   repository.OrderRepository
+	stockService *StockService
 }
 
 // NewOrderService creates a new order service
-func NewOrderService(productRepo repository.ProductRepository, orderRepo repository.OrderRepository) *OrderService {
+func NewOrderService(productRepo repository.ProductRepository, orderRepo repository.OrderRepository, stockService *StockService) *OrderService {
 	return &OrderService{
 		productRepo: productRepo,
 		orderRepo:   orderRepo,
+		stockService: stockService,
 	}
 }
 
@@ -43,16 +45,21 @@ func (s *OrderService) ProcessOrder(ctx context.Context, userID string, requests
 
 	// Validate and add items to order
 	for _, req := range requests {
-		// Check product exists and has sufficient stock
+		// Check product exists
 		product, err := s.productRepo.FindByID(ctx, req.ProductID)
 		if err != nil {
 			return nil, fmt.Errorf("product not found: %s", req.ProductID)
 		}
 
-		// Check stock availability
-		if !product.CanFulfillOrder(req.Quantity) {
+		// Check stock availability across all warehouses
+		available, totalStock, err := s.stockService.CheckAvailability(ctx, req.ProductID, req.Quantity)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check stock availability: %w", err)
+		}
+
+		if !available {
 			return nil, fmt.Errorf("insufficient stock for product %s: requested %d, available %d",
-				product.Name, req.Quantity, product.Stock)
+				product.Name, req.Quantity, totalStock)
 		}
 
 		// Add item to order (without reducing stock)
@@ -76,59 +83,53 @@ func (s *OrderService) ProcessOrder(ctx context.Context, userID string, requests
 
 // ConfirmOrderAndReduceStock confirms the order and reduces stock after successful payment
 func (s *OrderService) ConfirmOrderAndReduceStock(ctx context.Context, order *entity.Order) error {
-	// Start a transaction for atomic stock reduction
-	tx, err := s.productRepo.BeginTransaction(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
+	// Store allocations for potential rollback
+	allocations := make(map[string][]StockAllocation)
 
-	productRepo := tx.GetProductRepository()
-
-	// Reduce stock for each item in the order
+	// Allocate stock for each item in the order
 	for _, item := range order.Items {
-		// Get product
-		product, err := productRepo.FindByID(ctx, item.ProductID)
-		if err != nil {
-			return fmt.Errorf("product not found: %s", item.ProductID)
-		}
-
 		// Double-check stock availability
-		if !product.CanFulfillOrder(item.Quantity) {
+		available, totalStock, err := s.stockService.CheckAvailability(ctx, item.ProductID, item.Quantity)
+		if err != nil {
+			// Rollback any previous allocations
+			s.rollbackAllocations(ctx, allocations)
+			return fmt.Errorf("failed to check stock: %w", err)
+		}
+
+		if !available {
+			// Rollback any previous allocations
+			s.rollbackAllocations(ctx, allocations)
 			return fmt.Errorf("insufficient stock for product %s: requested %d, available %d",
-				product.Name, item.Quantity, product.Stock)
+				item.ProductName, item.Quantity, totalStock)
 		}
 
-		// Reduce stock
-		err = product.ReduceStock(item.Quantity)
+		// Allocate stock from warehouses
+		itemAllocations, err := s.stockService.AllocateStock(ctx, item.ProductID, item.Quantity)
 		if err != nil {
-			return err
+			// Rollback any previous allocations
+			s.rollbackAllocations(ctx, allocations)
+			return fmt.Errorf("failed to allocate stock for product %s: %w", item.ProductName, err)
 		}
 
-		// Update stock in database
-		err = productRepo.Update(ctx, product)
-		if err != nil {
-			return fmt.Errorf("failed to update product stock: %w", err)
-		}
+		allocations[item.ProductID] = itemAllocations
 	}
 
 	// Confirm the order
-	err = order.Confirm()
+	err := order.Confirm()
 	if err != nil {
+		// Rollback all allocations if order confirmation fails
+		s.rollbackAllocations(ctx, allocations)
 		return err
 	}
 
-	// Commit transaction
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
 	return nil
+}
+
+// rollbackAllocations restores stock allocations in case of failure
+func (s *OrderService) rollbackAllocations(ctx context.Context, allocations map[string][]StockAllocation) {
+	for productID, stockAllocations := range allocations {
+		_ = s.stockService.RestoreStock(ctx, productID, stockAllocations)
+	}
 }
 
 // ValidateOrderItems validates that all requested items can be fulfilled
