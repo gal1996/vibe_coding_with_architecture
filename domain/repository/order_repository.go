@@ -19,4 +19,7 @@ type OrderRepository interface {
 
 	// Update updates an order
 	Update(ctx context.Context, order *entity.Order) error
+
+	// FindAll finds all orders
+	FindAll(ctx context.Context) ([]*entity.Order, error)
 }

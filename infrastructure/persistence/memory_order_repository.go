@@ -90,3 +90,19 @@ func (r *MemoryOrderRepository) Update(ctx context.Context, order *entity.Order)
 	r.orders[order.ID] = &orderCopy
 	return nil
 }
+
+// FindAll finds all orders
+func (r *MemoryOrderRepository) FindAll(ctx context.Context) ([]*entity.Order, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []*entity.Order
+	for _, order := range r.orders {
+		// Create a deep copy to avoid external modifications
+		orderCopy := *order
+		orderCopy.Items = make([]entity.OrderItem, len(order.Items))
+		copy(orderCopy.Items, order.Items)
+		result = append(result, &orderCopy)
+	}
+	return result, nil
+}

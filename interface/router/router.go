@@ -49,6 +49,15 @@ func NewRouter(container *di.Container) *gin.Engine {
 				admin.POST("/products", container.ProductHandler.CreateProduct)
 			}
 		}
+
+		// Admin routes (require admin authentication)
+		admin := v1.Group("/admin")
+		admin.Use(container.AuthMiddleware.Authenticate())
+		admin.Use(container.AuthMiddleware.RequireAdmin())
+		{
+			// Reports
+			admin.GET("/reports/sales", container.AdminHandler.GetSalesReport)
+		}
 	}
 
 	return router

@@ -28,21 +28,24 @@ type Container struct {
 	CouponRepository    repository.CouponRepository
 
 	// Services
-	AuthService    port.AuthService
-	PaymentService port.PaymentService
-	OrderService   *service.OrderService
-	StockService   *service.StockService
-	CouponService  *service.CouponService
+	AuthService      port.AuthService
+	PaymentService   port.PaymentService
+	OrderService     *service.OrderService
+	StockService     *service.StockService
+	CouponService    *service.CouponService
+	AnalyticsService *service.AnalyticsService
 
 	// Use Cases
-	ProductUseCase *interactor.ProductUseCase
-	UserUseCase    *interactor.UserUseCase
-	OrderUseCase   *interactor.OrderUseCase
+	ProductUseCase   *interactor.ProductUseCase
+	UserUseCase      *interactor.UserUseCase
+	OrderUseCase     *interactor.OrderUseCase
+	AnalyticsUseCase *interactor.AnalyticsUseCase
 
 	// Handlers
 	ProductHandler *handler.ProductHandler
 	UserHandler    *handler.UserHandler
 	OrderHandler   *handler.OrderHandler
+	AdminHandler   *handler.AdminHandler
 
 	// Middleware
 	AuthMiddleware *middleware.AuthMiddleware
@@ -64,16 +67,19 @@ func NewContainer() *Container {
 	stockService := service.NewStockService(stockRepo, warehouseRepo)
 	couponService := service.NewCouponService(couponRepo)
 	orderService := service.NewOrderService(productRepo, orderRepo, stockService, couponService)
+	analyticsService := service.NewAnalyticsService(orderRepo, productRepo, stockRepo, warehouseRepo)
 
 	// Initialize use cases
 	productUseCase := interactor.NewProductUseCase(productRepo, userRepo, authService, stockService)
 	userUseCase := interactor.NewUserUseCase(userRepo, authService)
 	orderUseCase := interactor.NewOrderUseCase(orderRepo, productRepo, orderService, authService, paymentService)
+	analyticsUseCase := interactor.NewAnalyticsUseCase(analyticsService, authService)
 
 	// Initialize handlers
 	productHandler := handler.NewProductHandler(productUseCase)
 	userHandler := handler.NewUserHandler(userUseCase)
 	orderHandler := handler.NewOrderHandler(orderUseCase)
+	adminHandler := handler.NewAdminHandler(analyticsUseCase)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService, userRepo)
@@ -88,21 +94,24 @@ func NewContainer() *Container {
 		CouponRepository:    couponRepo,
 
 		// Services
-		AuthService:    authService,
-		PaymentService: paymentService,
-		OrderService:   orderService,
-		StockService:   stockService,
-		CouponService:  couponService,
+		AuthService:      authService,
+		PaymentService:   paymentService,
+		OrderService:     orderService,
+		StockService:     stockService,
+		CouponService:    couponService,
+		AnalyticsService: analyticsService,
 
 		// Use Cases
-		ProductUseCase: productUseCase,
-		UserUseCase:    userUseCase,
-		OrderUseCase:   orderUseCase,
+		ProductUseCase:   productUseCase,
+		UserUseCase:      userUseCase,
+		OrderUseCase:     orderUseCase,
+		AnalyticsUseCase: analyticsUseCase,
 
 		// Handlers
 		ProductHandler: productHandler,
 		UserHandler:    userHandler,
 		OrderHandler:   orderHandler,
+		AdminHandler:   adminHandler,
 
 		// Middleware
 		AuthMiddleware: authMiddleware,
