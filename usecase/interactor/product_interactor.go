@@ -15,10 +15,11 @@ import (
 
 // ProductUseCase handles product-related business logic
 type ProductUseCase struct {
-	productRepo  repository.ProductRepository
-	userRepo     repository.UserRepository
-	authService  port.AuthService
-	stockService *service.StockService
+	productRepo     repository.ProductRepository
+	userRepo        repository.UserRepository
+	authService     port.AuthService
+	stockService    *service.StockService
+	wishlistService *service.WishlistService
 }
 
 // NewProductUseCase creates a new product use case
@@ -27,12 +28,14 @@ func NewProductUseCase(
 	userRepo repository.UserRepository,
 	authService port.AuthService,
 	stockService *service.StockService,
+	wishlistService *service.WishlistService,
 ) *ProductUseCase {
 	return &ProductUseCase{
-		productRepo:  productRepo,
-		userRepo:     userRepo,
-		authService:  authService,
-		stockService: stockService,
+		productRepo:     productRepo,
+		userRepo:        userRepo,
+		authService:     authService,
+		stockService:    stockService,
+		wishlistService: wishlistService,
 	}
 }
 
@@ -96,6 +99,13 @@ func (uc *ProductUseCase) GetProduct(ctx context.Context, productID string) (*en
 	product.Stocks = stockInfos
 	product.TotalStock = totalStock
 
+	// Check if product is in user's wishlist
+	currentUser, _ := uc.authService.GetCurrentUser(ctx)
+	if currentUser != nil && uc.wishlistService != nil {
+		isFavorite, _ := uc.wishlistService.IsInWishlist(ctx, currentUser.ID, productID)
+		product.IsFavorite = isFavorite
+	}
+
 	return product, nil
 }
 
@@ -106,7 +116,10 @@ func (uc *ProductUseCase) ListProducts(ctx context.Context, category string) ([]
 		return nil, fmt.Errorf("failed to list products: %w", err)
 	}
 
-	// Add stock information for each product
+	// Get current user for wishlist check
+	currentUser, _ := uc.authService.GetCurrentUser(ctx)
+
+	// Add stock information and wishlist status for each product
 	for _, product := range products {
 		stockInfos, totalStock, err := uc.stockService.GetProductStockInfo(ctx, product.ID)
 		if err != nil {
@@ -116,6 +129,12 @@ func (uc *ProductUseCase) ListProducts(ctx context.Context, category string) ([]
 		}
 		product.Stocks = stockInfos
 		product.TotalStock = totalStock
+
+		// Check if product is in user's wishlist
+		if currentUser != nil && uc.wishlistService != nil {
+			isFavorite, _ := uc.wishlistService.IsInWishlist(ctx, currentUser.ID, product.ID)
+			product.IsFavorite = isFavorite
+		}
 	}
 
 	return products, nil

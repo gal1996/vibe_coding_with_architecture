@@ -16,6 +16,8 @@ type Product struct {
 	// Stock is now managed separately through Stock entities
 	Stocks    []StockInfo `json:"stocks,omitempty"`     // Stock information by warehouse
 	TotalStock int        `json:"total_stock,omitempty"` // Calculated total across all warehouses
+	// Wishlist information
+	IsFavorite bool        `json:"is_favorite"` // Whether the product is in the current user's wishlist
 }
 
 // NewProduct creates a new product entity

@@ -69,6 +69,52 @@ func (m *AuthMiddleware) Authenticate() gin.HandlerFunc {
 	}
 }
 
+// OptionalAuthenticate is the middleware function for optional authentication
+// It sets the user in context if a valid token is provided, but doesn't require it
+func (m *AuthMiddleware) OptionalAuthenticate() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get token from header
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			// No token provided, continue without authentication
+			c.Next()
+			return
+		}
+
+		// Check if it starts with "Bearer "
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			// Invalid format, continue without authentication
+			c.Next()
+			return
+		}
+
+		token := parts[1]
+
+		// Validate token
+		userID, err := m.authService.ValidateToken(token)
+		if err != nil {
+			// Invalid token, continue without authentication
+			c.Next()
+			return
+		}
+
+		// Get user from repository
+		user, err := m.userRepo.FindByID(c.Request.Context(), userID)
+		if err != nil {
+			// User not found, continue without authentication
+			c.Next()
+			return
+		}
+
+		// Set user in context
+		ctx := auth.SetUserInContext(c.Request.Context(), user)
+		c.Request = c.Request.WithContext(ctx)
+
+		c.Next()
+	}
+}
+
 // RequireAdmin is the middleware function for admin-only routes
 func (m *AuthMiddleware) RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {

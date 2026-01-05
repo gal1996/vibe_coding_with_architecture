@@ -24,9 +24,9 @@ func NewRouter(container *di.Container) *gin.Engine {
 			public.POST("/register", container.UserHandler.Register)
 			public.POST("/login", container.UserHandler.Login)
 
-			// Product routes (read-only for public)
-			public.GET("/products", container.ProductHandler.ListProducts)
-			public.GET("/products/:id", container.ProductHandler.GetProduct)
+			// Product routes (read-only for public, with optional authentication)
+			public.GET("/products", container.AuthMiddleware.OptionalAuthenticate(), container.ProductHandler.ListProducts)
+			public.GET("/products/:id", container.AuthMiddleware.OptionalAuthenticate(), container.ProductHandler.GetProduct)
 		}
 
 		// Protected routes (require authentication)
@@ -40,6 +40,14 @@ func NewRouter(container *di.Container) *gin.Engine {
 			protected.POST("/orders", container.OrderHandler.CreateOrder)
 			protected.GET("/orders", container.OrderHandler.ListUserOrders)
 			protected.GET("/orders/:id", container.OrderHandler.GetOrder)
+
+			// Wishlist routes
+			protected.POST("/wishlist/:product_id", container.WishlistHandler.AddToWishlist)
+			protected.DELETE("/wishlist/:product_id", container.WishlistHandler.RemoveFromWishlist)
+			protected.GET("/wishlist", container.WishlistHandler.GetMyWishlist)
+
+			// Recommendations
+			protected.GET("/users/me/recommendations", container.WishlistHandler.GetRecommendations)
 
 			// Admin-only routes
 			admin := protected.Group("")

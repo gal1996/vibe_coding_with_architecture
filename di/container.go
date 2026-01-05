@@ -26,6 +26,7 @@ type Container struct {
 	StockRepository     repository.StockRepository
 	WarehouseRepository repository.WarehouseRepository
 	CouponRepository    repository.CouponRepository
+	WishlistRepository  repository.WishlistRepository
 
 	// Services
 	AuthService      port.AuthService
@@ -34,18 +35,21 @@ type Container struct {
 	StockService     *service.StockService
 	CouponService    *service.CouponService
 	AnalyticsService *service.AnalyticsService
+	WishlistService  *service.WishlistService
 
 	// Use Cases
 	ProductUseCase   *interactor.ProductUseCase
 	UserUseCase      *interactor.UserUseCase
 	OrderUseCase     *interactor.OrderUseCase
 	AnalyticsUseCase *interactor.AnalyticsUseCase
+	WishlistUseCase  *interactor.WishlistUseCase
 
 	// Handlers
 	ProductHandler *handler.ProductHandler
 	UserHandler    *handler.UserHandler
 	OrderHandler   *handler.OrderHandler
 	AdminHandler   *handler.AdminHandler
+	WishlistHandler *handler.WishlistHandler
 
 	// Middleware
 	AuthMiddleware *middleware.AuthMiddleware
@@ -60,6 +64,7 @@ func NewContainer() *Container {
 	stockRepo := persistence.NewMemoryStockRepository()
 	warehouseRepo := persistence.NewMemoryWarehouseRepository()
 	couponRepo := persistence.NewMemoryCouponRepository()
+	wishlistRepo := persistence.NewMemoryWishlistRepository()
 
 	// Initialize services
 	authService := auth.NewJWTAuthService(userRepo)
@@ -68,18 +73,21 @@ func NewContainer() *Container {
 	couponService := service.NewCouponService(couponRepo)
 	orderService := service.NewOrderService(productRepo, orderRepo, stockService, couponService)
 	analyticsService := service.NewAnalyticsService(orderRepo, productRepo, stockRepo, warehouseRepo)
+	wishlistService := service.NewWishlistService(wishlistRepo, productRepo, userRepo)
 
 	// Initialize use cases
-	productUseCase := interactor.NewProductUseCase(productRepo, userRepo, authService, stockService)
+	productUseCase := interactor.NewProductUseCase(productRepo, userRepo, authService, stockService, wishlistService)
 	userUseCase := interactor.NewUserUseCase(userRepo, authService)
 	orderUseCase := interactor.NewOrderUseCase(orderRepo, productRepo, orderService, authService, paymentService)
 	analyticsUseCase := interactor.NewAnalyticsUseCase(analyticsService, authService)
+	wishlistUseCase := interactor.NewWishlistUseCase(wishlistService, authService)
 
 	// Initialize handlers
 	productHandler := handler.NewProductHandler(productUseCase)
 	userHandler := handler.NewUserHandler(userUseCase)
 	orderHandler := handler.NewOrderHandler(orderUseCase)
 	adminHandler := handler.NewAdminHandler(analyticsUseCase)
+	wishlistHandler := handler.NewWishlistHandler(wishlistUseCase)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService, userRepo)
@@ -92,6 +100,7 @@ func NewContainer() *Container {
 		StockRepository:     stockRepo,
 		WarehouseRepository: warehouseRepo,
 		CouponRepository:    couponRepo,
+		WishlistRepository:  wishlistRepo,
 
 		// Services
 		AuthService:      authService,
@@ -100,18 +109,21 @@ func NewContainer() *Container {
 		StockService:     stockService,
 		CouponService:    couponService,
 		AnalyticsService: analyticsService,
+		WishlistService:  wishlistService,
 
 		// Use Cases
 		ProductUseCase:   productUseCase,
 		UserUseCase:      userUseCase,
 		OrderUseCase:     orderUseCase,
 		AnalyticsUseCase: analyticsUseCase,
+		WishlistUseCase:  wishlistUseCase,
 
 		// Handlers
 		ProductHandler: productHandler,
 		UserHandler:    userHandler,
 		OrderHandler:   orderHandler,
 		AdminHandler:   adminHandler,
+		WishlistHandler: wishlistHandler,
 
 		// Middleware
 		AuthMiddleware: authMiddleware,
