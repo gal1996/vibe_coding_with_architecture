@@ -21,7 +21,8 @@ func NewOrderHandler(orderUseCase *interactor.OrderUseCase) *OrderHandler {
 
 // CreateOrderRequest represents the request body for creating an order
 type CreateOrderRequest struct {
-	Items []OrderItemRequest `json:"items" binding:"required,min=1"`
+	Items      []OrderItemRequest `json:"items" binding:"required,min=1"`
+	CouponCode string            `json:"coupon_code,omitempty"` // Optional coupon code
 }
 
 // OrderItemRequest represents an item in an order request
@@ -48,7 +49,8 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	}
 
 	input := interactor.CreateOrderInput{
-		Items: items,
+		Items:      items,
+		CouponCode: req.CouponCode,
 	}
 
 	order, err := h.orderUseCase.CreateOrder(c.Request.Context(), input)

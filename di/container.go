@@ -3,6 +3,7 @@ package di
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gal1996/vibe_coding_with_architecture/domain/entity"
 	"github.com/gal1996/vibe_coding_with_architecture/domain/repository"
@@ -24,12 +25,14 @@ type Container struct {
 	OrderRepository     repository.OrderRepository
 	StockRepository     repository.StockRepository
 	WarehouseRepository repository.WarehouseRepository
+	CouponRepository    repository.CouponRepository
 
 	// Services
 	AuthService    port.AuthService
 	PaymentService port.PaymentService
 	OrderService   *service.OrderService
 	StockService   *service.StockService
+	CouponService  *service.CouponService
 
 	// Use Cases
 	ProductUseCase *interactor.ProductUseCase
@@ -53,12 +56,14 @@ func NewContainer() *Container {
 	orderRepo := persistence.NewMemoryOrderRepository()
 	stockRepo := persistence.NewMemoryStockRepository()
 	warehouseRepo := persistence.NewMemoryWarehouseRepository()
+	couponRepo := persistence.NewMemoryCouponRepository()
 
 	// Initialize services
 	authService := auth.NewJWTAuthService(userRepo)
 	paymentService := payment.NewSimulatedPaymentService()
 	stockService := service.NewStockService(stockRepo, warehouseRepo)
-	orderService := service.NewOrderService(productRepo, orderRepo, stockService)
+	couponService := service.NewCouponService(couponRepo)
+	orderService := service.NewOrderService(productRepo, orderRepo, stockService, couponService)
 
 	// Initialize use cases
 	productUseCase := interactor.NewProductUseCase(productRepo, userRepo, authService, stockService)
@@ -80,12 +85,14 @@ func NewContainer() *Container {
 		OrderRepository:     orderRepo,
 		StockRepository:     stockRepo,
 		WarehouseRepository: warehouseRepo,
+		CouponRepository:    couponRepo,
 
 		// Services
 		AuthService:    authService,
 		PaymentService: paymentService,
 		OrderService:   orderService,
 		StockService:   stockService,
+		CouponService:  couponService,
 
 		// Use Cases
 		ProductUseCase: productUseCase,
@@ -208,6 +215,80 @@ func (c *Container) SeedTestData() error {
 			if err != nil {
 				return err
 			}
+		}
+	}
+
+	// Create initial coupons
+	coupons := []struct {
+		id           string
+		code         string
+		description  string
+		couponType   string
+		value        int
+		minimumOrder int
+		usageLimit   int
+	}{
+		{
+			id:           "CPN-001",
+			code:         "SAVE10",
+			description:  "10% discount on all items",
+			couponType:   "percentage",
+			value:        10, // 10% off
+			minimumOrder: 1000,
+			usageLimit:   100,
+		},
+		{
+			id:           "CPN-002",
+			code:         "FLAT1000",
+			description:  "1000 yen discount",
+			couponType:   "fixed",
+			value:        1000, // 1000 yen off
+			minimumOrder: 3000,
+			usageLimit:   50,
+		},
+		{
+			id:           "CPN-003",
+			code:         "WELCOME20",
+			description:  "20% welcome discount",
+			couponType:   "percentage",
+			value:        20, // 20% off
+			minimumOrder: 5000,
+			usageLimit:   30,
+		},
+		{
+			id:           "CPN-004",
+			code:         "FLASH500",
+			description:  "Flash sale: 500 yen off",
+			couponType:   "fixed",
+			value:        500, // 500 yen off
+			minimumOrder: 2000,
+			usageLimit:   200,
+		},
+	}
+
+	for _, cp := range coupons {
+		coupon, err := entity.NewCoupon(
+			cp.id,
+			cp.code,
+			cp.description,
+			entity.CouponType(cp.couponType),
+			cp.value,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create coupon %s: %v", cp.code, err)
+		}
+
+		// Update additional properties
+		coupon.MinimumOrder = cp.minimumOrder
+		coupon.UsageLimit = cp.usageLimit
+		coupon.ValidFrom = time.Now()
+		coupon.ValidUntil = time.Now().AddDate(1, 0, 0)
+		coupon.IsActive = true
+
+		err = c.CouponRepository.Create(nil, coupon)
+		if err != nil {
+			// Ignore error if coupon already exists
+			fmt.Printf("Coupon %s might already exist, skipping: %v\n", cp.code, err)
 		}
 	}
 

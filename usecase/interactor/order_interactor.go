@@ -38,7 +38,8 @@ func NewOrderUseCase(
 
 // CreateOrderInput represents the input for creating an order
 type CreateOrderInput struct {
-	Items []OrderItemInput
+	Items      []OrderItemInput
+	CouponCode string `json:"coupon_code,omitempty"` // Optional coupon code
 }
 
 // OrderItemInput represents an item in an order input
@@ -64,8 +65,8 @@ func (uc *OrderUseCase) CreateOrder(ctx context.Context, input CreateOrderInput)
 		}
 	}
 
-	// Create pending order with stock validation (but without reducing stock)
-	order, err := uc.orderService.ProcessOrder(ctx, currentUser.ID, requests)
+	// Create pending order with stock validation and coupon application (but without reducing stock)
+	order, err := uc.orderService.ProcessOrder(ctx, currentUser.ID, requests, input.CouponCode)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create order: %w", err)
 	}

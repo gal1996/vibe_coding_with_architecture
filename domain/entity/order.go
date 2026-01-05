@@ -28,14 +28,16 @@ type OrderItem struct {
 
 // Order represents an order in the system
 type Order struct {
-	ID          string        `json:"id"`
-	UserID      string        `json:"user_id"`
-	Items       []OrderItem   `json:"items"`
-	TotalPrice  int           `json:"total_price"`
-	ShippingFee int           `json:"shipping_fee"`
-	Status      OrderStatus   `json:"status"`
-	CreatedAt   time.Time     `json:"created_at"`
-	UpdatedAt   time.Time     `json:"updated_at"`
+	ID            string        `json:"id"`
+	UserID        string        `json:"user_id"`
+	Items         []OrderItem   `json:"items"`
+	TotalPrice    int           `json:"total_price"`
+	ShippingFee   int           `json:"shipping_fee"`
+	DiscountAmount int          `json:"discount_amount,omitempty"` // Amount discounted by coupon
+	AppliedCoupon string        `json:"applied_coupon,omitempty"`   // Code of applied coupon
+	Status        OrderStatus   `json:"status"`
+	CreatedAt     time.Time     `json:"created_at"`
+	UpdatedAt     time.Time     `json:"updated_at"`
 }
 
 // NewOrder creates a new order entity
@@ -167,4 +169,41 @@ func (o *Order) CalculateShippingFee() int {
 		return 0
 	}
 	return 500
+}
+
+// ApplyCouponDiscount applies a coupon discount to the order
+// This updates the discount amount, applied coupon code, and recalculates the total
+func (o *Order) ApplyCouponDiscount(couponCode string, discountAmount int) {
+	o.AppliedCoupon = couponCode
+	o.DiscountAmount = discountAmount
+	o.recalculateTotalWithDiscount()
+	o.UpdatedAt = time.Now()
+}
+
+// recalculateTotalWithDiscount recalculates the total with the applied discount
+func (o *Order) recalculateTotalWithDiscount() {
+	// Calculate subtotal (before tax)
+	subtotal := o.GetSubtotal()
+
+	// Apply 10% consumption tax
+	taxAmount := o.GetTaxAmount()
+	subtotalWithTax := subtotal + taxAmount
+
+	// Calculate shipping fee
+	o.ShippingFee = o.CalculateShippingFee()
+
+	// Apply coupon discount to (subtotal + tax), NOT to shipping
+	// Discount is applied to the taxed amount, but not to shipping
+	discountedAmount := subtotalWithTax - o.DiscountAmount
+	if discountedAmount < 0 {
+		discountedAmount = 0 // Ensure total doesn't go below 0
+	}
+
+	// Calculate final total: (discounted amount) + shipping
+	o.TotalPrice = discountedAmount + o.ShippingFee
+}
+
+// GetSubtotalWithTax returns the subtotal including tax (before discount and shipping)
+func (o *Order) GetSubtotalWithTax() int {
+	return o.GetSubtotal() + o.GetTaxAmount()
 }
